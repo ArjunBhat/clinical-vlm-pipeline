@@ -9,8 +9,6 @@ def load_and_clean_data(csv_path):
     df = pd.read_csv(csv_path)
     
     # 1. Isolate the base image name (Grouping logic)
-    # The 'IMAGE_LABELS' column usually holds the base name like 'CXR01.JPEG'
-    # The 'IMAGE_NAMES' column holds the long UUID variations
     # We will group by the base 'IMAGE_LABELS' to prevent leakage
     print(f"Total rows found: {len(df)}")
     unique_base_images = df['IMAGE_LABELS'].nunique()
@@ -38,14 +36,13 @@ def create_splits(df):
     leakage = train_bases.intersection(val_bases)
     
     if len(leakage) == 0:
-        print("✅ Data Split SUCCESS: No data leakage detected between Train and Val sets.")
+        print(" Data Split SUCCESS: No data leakage detected between Train and Val sets.")
     else:
-        print(f"❌ WARNING: Leakage detected in {len(leakage)} base images.")
+        print(f" WARNING: Leakage detected in {len(leakage)} base images.")
         
     return train_df, val_df
 
 def verify_image_paths(df, images_dir):
-    # 3. Since you have 16GB RAM, we can safely check if the files actually exist!
     print(f"\nVerifying image paths in '{images_dir}'...")
     missing_files = 0
     
@@ -55,9 +52,9 @@ def verify_image_paths(df, images_dir):
             missing_files += 1
             
     if missing_files == 0:
-         print("✅ Path check passed for sample batch.")
+         print(" Path check passed for sample batch.")
     else:
-         print(f"⚠️ Missing files detected. Check your folder structure.")
+         print(f" Missing files detected. Check your folder structure.")
 
 def save_splits(train_df, val_df, data_dir):
     # 4. Export the clean data
@@ -81,4 +78,3 @@ if __name__ == "__main__":
     verify_image_paths(df, images_dir)
     save_splits(train_df, val_df, data_dir)
     
-    print("\nPhase 2 Complete. Ready for Phase 3 (README generation).")
