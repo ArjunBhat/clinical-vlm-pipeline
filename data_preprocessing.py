@@ -1,80 +1,28 @@
+import os
 import pandas as pd
 from sklearn.model_selection import GroupShuffleSplit
-import os
-import matplotlib.pyplot as plt
-from PIL import Image
 
-def load_and_clean_data(csv_path):
-    print(f"Loading data from {csv_path}...")
-    df = pd.read_csv(csv_path)
-    
-    # 1. Isolate the base image name (Grouping logic)
-    # We will group by the base 'IMAGE_LABELS' to prevent leakage
-    print(f"Total rows found: {len(df)}")
-    unique_base_images = df['IMAGE_LABELS'].nunique()
-    print(f"Total UNIQUE base images found: {unique_base_images}")
-    
-    return df
+# 1. Load the original CSV
+df = pd.read_csv('data/KMC_original_csv.csv')
+img_dir = 'images'
 
-def create_splits(df):
-    # 2. Use GroupShuffleSplit to keep identical base images in the same split
-    # We use 80% for training and 20% for validation
-    print("\nCreating Train/Validation splits based on Image Groups...")
-    gss = GroupShuffleSplit(n_splits=1, train_size=0.8, random_state=42)
-    
-    train_idx, val_idx = next(gss.split(df, groups=df['IMAGE_LABELS']))
-    
-    train_df = df.iloc[train_idx]
-    val_df = df.iloc[val_idx]
-    
-    print(f"Training set size: {len(train_df)} rows")
-    print(f"Validation set size: {len(val_df)} rows")
-    
-    # Check for leakage
-    train_bases = set(train_df['IMAGE_LABELS'])
-    val_bases = set(val_df['IMAGE_LABELS'])
-    leakage = train_bases.intersection(val_bases)
-    
-    if len(leakage) == 0:
-        print(" Data Split SUCCESS: No data leakage detected between Train and Val sets.")
-    else:
-        print(f" WARNING: Leakage detected in {len(leakage)} base images.")
-        
-    return train_df, val_df
+# 2. PRUNING: Only keep rows where the image actually exists on your disk
+print(f"Original CSV size: {len(df)}")
+df['exists'] = df['IMAGE_NAMES'].apply(lambda x: os.path.exists(os.path.join(img_dir, str(x).strip())))
+df = df[df['exists'] == True].copy()
+df = df.drop(columns=['exists'])
+print(f"Usable rows (matching your 221 images): {len(df)}")
 
-def verify_image_paths(df, images_dir):
-    print(f"\nVerifying image paths in '{images_dir}'...")
-    missing_files = 0
-    
-    for img_name in df['IMAGE_NAMES'].head(100): # Only check first 100 for speed
-        path = os.path.join(images_dir, img_name)
-        if not os.path.exists(path):
-            missing_files += 1
-            
-    if missing_files == 0:
-         print(" Path check passed for sample batch.")
-    else:
-         print(f" Missing files detected. Check your folder structure.")
+# 3. SPLITTING: Now split ONLY the 221 images
+gss = GroupShuffleSplit(n_splits=1, train_size=0.8, random_state=42)
+train_idx, val_idx = next(gss.split(df, groups=df['IMAGE_LABELS']))
 
-def save_splits(train_df, val_df, data_dir):
-    # 4. Export the clean data
-    train_path = os.path.join(data_dir, 'train_metadata.csv')
-    val_path = os.path.join(data_dir, 'val_metadata.csv')
-    
-    train_df.to_csv(train_path, index=False)
-    val_df.to_csv(val_path, index=False)
-    print(f"\nSaved clean splits to '{data_dir}' folder.")
+train_df = df.iloc[train_idx]
+val_df = df.iloc[val_idx]
 
-if __name__ == "__main__":
-    # Define paths based on your provided structure
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    data_dir = os.path.join(base_dir, 'data')
-    images_dir = os.path.join(base_dir, 'images')
-    csv_path = os.path.join(data_dir, 'KMC_original_csv.csv')
-    
-    # Execute Pipeline
-    df = load_and_clean_data(csv_path)
-    train_df, val_df = create_splits(df)
-    verify_image_paths(df, images_dir)
-    save_splits(train_df, val_df, data_dir)
-    
+# 4. SAVE: Overwrite the old CSVs with the clean, smaller versions
+train_df.to_csv('data/train_metadata.csv', index=False)
+val_df.to_csv('data/val_metadata.csv', index=False)
+
+print(f"New Train size: {len(train_df)}")
+print(f"New Val size: {len(val_df)}")
